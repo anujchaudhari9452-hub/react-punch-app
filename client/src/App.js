@@ -1,36 +1,62 @@
-body {
-  font-family: Arial, sans-serif;
-  background-color: #f3f4f6;
-  margin: 0;
-  padding: 20px;
+import React, { useEffect, useState } from "react";
+import axios from "axios";
+
+function App() {
+  const [punches, setPunches] = useState([]);
+  const [manualTime, setManualTime] = useState("");
+
+  const backendURL = process.env.REACT_APP_BACKEND_URL || window.location.origin;
+
+  const fetchPunches = async () => {
+    try {
+      const res = await axios.get(`${backendURL}/api/punches`);
+      setPunches(res.data);
+    } catch (err) {
+      console.error("Error fetching punches:", err);
+    }
+  };
+
+  const punchIn = async () => {
+    const now = new Date();
+    const localTime = now.toLocaleString();
+    const timeToSave = manualTime || localTime;
+
+    try {
+      await axios.post(`${backendURL}/api/punch`, { time: timeToSave });
+      setManualTime("");
+      fetchPunches();
+    } catch (err) {
+      console.error("Error punching in:", err);
+    }
+  };
+
+  useEffect(() => {
+    fetchPunches();
+  }, []);
+
+  return (
+    <div className="container">
+      <h2>⏰ Punch In App</h2>
+      <p>
+        <strong>Local Time:</strong> {new Date().toLocaleString()}
+      </p>
+      <input
+        type="text"
+        placeholder="Enter time manually (optional)"
+        value={manualTime}
+        onChange={(e) => setManualTime(e.target.value)}
+      />
+      <div>
+        <button onClick={punchIn}>Punch In</button>
+      </div>
+      <h3>Recent Punches</h3>
+      <ul style={{ textAlign: "left" }}>
+        {punches.map((p, i) => (
+          <li key={i}>{p.time}</li>
+        ))}
+      </ul>
+    </div>
+  );
 }
 
-.container {
-  max-width: 500px;
-  margin: 0 auto;
-  background: white;
-  border-radius: 12px;
-  box-shadow: 0 4px 10px rgba(0,0,0,0.1);
-  padding: 30px;
-  text-align: center;
-}
-
-button {
-  background-color: #2563eb;
-  color: white;
-  padding: 10px 16px;
-  border: none;
-  border-radius: 8px;
-  cursor: pointer;
-  margin-top: 12px;
-}
-
-button:hover {
-  background-color: #1d4ed8;
-}
-
-input {
-  padding: 8px;
-  width: 70%;
-  margin-top: 8px;
-}
+export default App;
