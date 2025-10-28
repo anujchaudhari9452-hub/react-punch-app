@@ -1,44 +1,59 @@
-import React, { useEffect, useState } from "react";
-import axios from "axios";
+import React, { useState, useEffect } from "react";
+import "./App.css";
 
 function App() {
-  const [punches, setPunches] = useState([]);
   const [manualTime, setManualTime] = useState("");
+  const [localTime, setLocalTime] = useState(new Date());
+  const [punches, setPunches] = useState([]);
+  const [loading, setLoading] = useState(false);
 
-  const backendURL = process.env.REACT_APP_BACKEND_URL || window.location.origin;
+  useEffect(() => {
+    const timer = setInterval(() => setLocalTime(new Date()), 1000);
+    fetchPunches();
+    return () => clearInterval(timer);
+  }, []);
 
   const fetchPunches = async () => {
     try {
-      const res = await axios.get(`${backendURL}/api/punches`);
-      setPunches(res.data);
+      const res = await fetch("/api/punches");
+      const data = await res.json();
+      setPunches(data);
     } catch (err) {
-      console.error("Error fetching punches:", err);
+      console.error("Failed to fetch punches", err);
     }
   };
 
-  const punchIn = async () => {
-    const now = new Date();
-    const localTime = now.toLocaleString();
-    const timeToSave = manualTime || localTime;
+  const handlePunch = async () => {
+    const timeToSave =
+      manualTime.trim() !== "" ? manualTime : localTime.toLocaleString();
 
+    setLoading(true);
     try {
-      await axios.post(`${backendURL}/api/punch`, { time: timeToSave });
-      setManualTime("");
-      fetchPunches();
+      const res = await fetch("/api/punch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ time: timeToSave }),
+      });
+
+      if (res.ok) {
+        setManualTime("");
+        fetchPunches();
+      } else {
+        alert("Failed to save punch");
+      }
     } catch (err) {
-      console.error("Error punching in:", err);
+      console.error(err);
+      alert("Error saving punch");
+    } finally {
+      setLoading(false);
     }
   };
-
-  useEffect(() => {
-    fetchPunches();
-  }, []);
 
   return (
-    <div className="container">
+    <div className="App" style={{ textAlign: "center", marginTop: "50px" }}>
       <h2>⏰ Punch In App</h2>
       <p>
-        <strong>Local Time:</strong> {new Date().toLocaleString()}
+        <strong>Local Time:</strong> {localTime.toLocaleString()}
       </p>
       <input
         type="text"
@@ -46,13 +61,41 @@ function App() {
         value={manualTime}
         onChange={(e) => setManualTime(e.target.value)}
       />
-      <div>
-        <button onClick={punchIn}>Punch In</button>
-      </div>
-      <h3>Recent Punches</h3>
-      <ul style={{ textAlign: "left" }}>
+      <br />
+      <button
+        onClick={handlePunch}
+        disabled={loading}
+        style={{
+          marginTop: "10px",
+          padding: "8px 16px",
+          backgroundColor: "#007bff",
+          color: "white",
+          border: "none",
+          borderRadius: "5px",
+          cursor: "pointer",
+        }}
+      >
+        {loading ? "Saving..." : "Punch In"}
+      </button>
+
+      <h3 style={{ marginTop: "30px" }}>Recent Punches</h3>
+      <ul style={{ listStyle: "none", padding: 0 }}>
+        {punches.length === 0 && <p>No punches yet.</p>}
         {punches.map((p, i) => (
-          <li key={i}>{p.time}</li>
+          <li
+            key={i}
+            style={{
+              margin: "5px 0",
+              background: "#f8f9fa",
+              padding: "8px",
+              borderRadius: "5px",
+              width: "300px",
+              marginLeft: "auto",
+              marginRight: "auto",
+            }}
+          >
+            {p.time}
+          </li>
         ))}
       </ul>
     </div>
