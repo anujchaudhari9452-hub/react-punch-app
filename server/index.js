@@ -1,58 +1,76 @@
 import express from "express";
 import cors from "cors";
 import couchbase from "couchbase";
+import path from "path";
+import { fileURLToPath } from "url";
 
 const app = express();
-app.use(express.json());
 app.use(cors());
+app.use(express.json());
 
-const port = process.env.PORT || 3001;
+// Couchbase connection
+const clusterConnStr = process.env.COUCHBASE_CONNSTR;
+const username = process.env.COUCHBASE_USER;
+const password = process.env.COUCHBASE_PASS;
+const bucketName = process.env.COUCHBASE_BUCKET;
 
-const connectToCouchbase = async () => {
+let collection;
+
+(async () => {
   try {
-    const cluster = await couchbase.connect(process.env.COUCHBASE_CONNSTR, {
-      username: process.env.COUCHBASE_USERNAME,
-      password: process.env.COUCHBASE_PASSWORD,
+    const cluster = await couchbase.connect(clusterConnStr, {
+      username,
+      password,
     });
-    const bucket = cluster.bucket(process.env.COUCHBASE_BUCKET);
-    const collection = bucket.defaultCollection();
+    const bucket = cluster.bucket(bucketName);
+    collection = bucket.defaultCollection();
     console.log("✅ Connected to Couchbase");
-    return collection;
   } catch (err) {
     console.error("❌ Couchbase connection failed:", err);
-    process.exit(1);
   }
-};
+})();
 
-let collectionPromise = connectToCouchbase();
-
+// API routes
 app.post("/api/punch", async (req, res) => {
   try {
-    const collection = await collectionPromise;
-    const punch = { time: req.body.time, createdAt: new Date().toISOString() };
-    const key = `punch_${Date.now()}`;
-    await collection.upsert(key, punch);
-    res.send({ success: true });
+    const time = req.body.time;
+    const id = `punch::${Date.now()}`;
+    await collection.insert(id, { time, createdAt: new Date().toISOString() });
+    res.status(200).json({ success: true });
   } catch (err) {
     console.error(err);
-    res.status(500).send({ error: "Failed to save punch" });
+    res.status(500).json({ error: "Failed to save punch" });
   }
 });
 
 app.get("/api/punches", async (req, res) => {
   try {
-    const collection = await collectionPromise;
-    const result = await collection.getAllScopesAndCollections();
-    // Simplified retrieval for demo (you can later switch to N1QL query)
-    res.send([{ time: "Sample Data (DB Query to be extended)" }]);
+    const query = `SELECT time, createdAt FROM \`${bucketName}\`._default._default ORDER BY createdAt DESC LIMIT 20`;
+    const cluster = await couchbase.connect(clusterConnStr, {
+      username,
+      password,
+    });
+    const result = await cluster.query(query);
+    res.json(result.rows);
   } catch (err) {
     console.error(err);
-    res.status(500).send({ error: "Failed to fetch punches" });
+    res.status(500).json({ error: "Failed to fetch punches" });
   }
 });
 
-const PORT = process.env.PORT || 10000;
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`🚀 Server running on port ${PORT}`);
+// ✅ Serve React frontend (this fixes "Cannot GET /")
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const clientBuildPath = path.join(__dirname, "../client/build");
+
+app.use(express.static(clientBuildPath));
+
+app.get("*", (req, res) => {
+  res.sendFile(path.join(clientBuildPath, "index.html"));
 });
 
+// Listen on Render's port
+const PORT = process.env.PORT || 10000;
+app.listen(PORT, "0.0.0.0", () => {
+  console.log(`🚀 Server running on port ${PORT}`);
+});
