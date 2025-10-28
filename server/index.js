@@ -51,4 +51,8 @@ app.get("/api/punches", async (req, res) => {
   }
 });
 
-app.listen(port, () => console.log(`🚀 Server running on port ${port}`));
+const PORT = process.env.PORT || 10000;
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`🚀 Server running on port ${PORT}`);
+});
+
