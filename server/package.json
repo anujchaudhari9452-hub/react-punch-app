@@ -1,6 +1,7 @@
 {
   "name": "punch-server",
   "version": "1.0.0",
+  "type": "module",
   "main": "index.js",
   "dependencies": {
     "couchbase": "^4.2.4",
